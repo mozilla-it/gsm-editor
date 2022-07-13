@@ -17,16 +17,6 @@
 
 import os, subprocess, argparse, tempfile, atexit, json
 
-# some of these should be options
-PROJECT = "moz-fx-testapp1-nonprod"
-ENV     = "stage"
-SECRET_NAME = "TEST_SECRET_ONE"
-
-SECRET_ID = f"{ENV}_{SECRET_NAME}"
-VERSION = "latest"
-FILENAME = "randomfilenamehere029837402389.json"
-
-# straight up copied from https://cloud.google.com/secret-manager/docs/creating-and-accessing-secrets
 def create_secret(project_id, secret_id, filename):
     """
     Create a new secret with the given name. A secret is a logical wrapper
