@@ -15,6 +15,16 @@
     ./gsm.py edit -p moz-fx-testapp1-nonprod -e stage
 """
 
+# Why am I using `subprocess` to shell out to `gcloud` instead of using the API?
+# Well, it's quicker to write, for one.
+# But mainly, this way doesn't require downloading and installing any additional
+# python packages (like google-cloud-secret-manager) and all of its dependencies,
+# which makes installing this script very much simpler.
+#
+# Also, I tried using the API first and got it to work once. Every time after
+# that it would just time out. :(
+#
+
 import os, subprocess, argparse, tempfile, atexit, json
 
 def create_secret(project_id, secret_id, filename):
@@ -24,7 +34,7 @@ def create_secret(project_id, secret_id, filename):
     secret material.
     """
 
-    # is an exception raised if this fails? if not, then look at return code
+    # FIXME: is an exception raised if this fails? if not, then look at return code
     result = subprocess.run(["gcloud", "--project", project_id, "secrets", "create", secret_id, "--data-file", filename])
 
 
@@ -33,17 +43,11 @@ def add_secret_version(project_id, secret_id, filename):
     Add a new secret version to the given secret with the provided payload.
     """
 
-    # is an exception raised if this fails? if not, then look at return code
+    # FIXME: is an exception raised if this fails? if not, then look at return code
     result = subprocess.run(["gcloud", "--project", project_id, "secrets", "versions", "add", secret_id, "--data-file", filename])
 
 def list_secret_versions(project_id, secret_id):
-    #result = subprocess.run(["gcloud", "--project", project_id, "secrets", "versions", "list", secret_id], capture_output=True)
     result = subprocess.call(["gcloud", "--project", project_id, "secrets", "versions", "list", secret_id])
-#    if result.returncode == 1:
-#        print(f"No such secret {project_id} {secret_id}")
-#        return 0
-#
-#    print(result.stdout)
 
 def access_secret_version(project_id, secret_id, filename, version):
     """
@@ -63,18 +67,13 @@ def access_secret_version(project_id, secret_id, filename, version):
         #print(f"No such secret {project_id} {secret_id} {version}")
         return 0
 
-    #print(result.stdout)
     # to deal with possible binary data, google suggests the following transforms:
     # (see: https://cloud.google.com/sdk/gcloud/reference/secrets/versions/access)
     result_tr  = subprocess.run(["tr", "_-", "/+"], input=result.stdout, stdout=subprocess.PIPE)
-    #print(result_tr.stdout)
     result_b64 = subprocess.run(["base64", "-d"], input=result_tr.stdout, stdout=open(filename, 'w', 1))
-    #print("Plaintext: {}".format(result_b64.stdout))
     return 1
 
 def cat_secret(project_id, secret_id, filename, version):
-    # let's not muddy up the output
-    #print(f"Project: {project_id} Secret: {secret_id} Version: {version}\n")
     with open(filename, 'r') as f:
         print(f.read())
 
