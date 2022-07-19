@@ -113,7 +113,7 @@ if __name__ == "__main__":
     if not args.secret:
         secret_name = f"{args.env}-gke-app-secrets"
     else:
-        secret_name = f"{args.env}_{args.secret}"
+        secret_name = f"{args.env}-{args.secret}"
 
     version = args.version
     if not version:
