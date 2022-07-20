@@ -26,6 +26,16 @@
 #
 
 import os, subprocess, argparse, tempfile, atexit, json
+from hashlib import sha256
+
+# thanks to https://www.quickprogrammingtips.com/python/how-to-calculate-sha256-hash-of-a-file-in-python.html
+def shasum(filename):
+    sha256_hash = sha256()
+    with open(filename,"rb") as f:
+        # Read and update hash string value in blocks of 4K
+        for byte_block in iter(lambda: f.read(4096),b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
 
 def create_secret(project_id, secret_id, filename):
     """
@@ -82,6 +92,8 @@ def edit_secret(filename):
 
     valid_json = False
 
+    initial_shasum = shasum(filename)
+
     while True:
         subprocess.call(f"{editor} {filename}", shell=True)
         # TODO: validate exit status?
@@ -98,6 +110,11 @@ def edit_secret(filename):
 
     if not valid_json:
         raise Exception("Unable to validate JSON")
+
+    if initial_shasum == shasum(filename):
+        print("No changes. Not pushing new version")
+        return 0
+    return 1
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -128,11 +145,11 @@ if __name__ == "__main__":
 
     if args.action == "edit":
         is_existing_secret = access_secret_version(args.project, secret_name, tempfile_path, version)
-        edit_secret(tempfile_path)
-        if is_existing_secret:
-            add_secret_version(args.project, secret_name, tempfile_path)
-        else:
-            create_secret(args.project, secret_name, tempfile_path)
+        if edit_secret(tempfile_path):
+            if is_existing_secret:
+                add_secret_version(args.project, secret_name, tempfile_path)
+            else:
+                create_secret(args.project, secret_name, tempfile_path)
     elif args.action == "view":
         access_secret_version(args.project, secret_name, tempfile_path, version)
         cat_secret(args.project, secret_name, tempfile_path, version)
