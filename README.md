@@ -3,11 +3,12 @@ A script for editing Google Secret Manager Secrets in a manner consistent with o
 
 # Examples
 
-### List the secret versions in the stage env
+### list the secret versions in the stage env
 `./gsm.py list -p moz-fx-testapp1-nonprod -e stage`
 
 ### view the latest version of the stage secret [or version 5]
 `./gsm.py view -p moz-fx-testapp1-nonprod -e stage [-v 5]`
 
 ### edit the latest version of the stage secret
+### This will create a secret for you if one does not already exist
 `./gsm.py edit -p moz-fx-testapp1-nonprod -e stage`
