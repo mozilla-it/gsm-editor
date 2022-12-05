@@ -12,6 +12,7 @@
     ./gsm.py view -p moz-fx-testapp1-nonprod -e stage [-v 5]
 
     # edit the latest version of the stage secret
+    # This will create a secret for you if one does not already exist
     ./gsm.py edit -p moz-fx-testapp1-nonprod -e stage
 """
 
