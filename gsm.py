@@ -124,12 +124,18 @@ if __name__ == "__main__":
     parser.add_argument("action", help="action: edit|view|list|diff")
     parser.add_argument("-p", "--project", type=str, required=True, help="id of the GCP project")
     parser.add_argument("-e", "--env", type=str, required=True, help="env of the secret (typically 'dev', 'stage', or 'prod')")
+    parser.add_argument("-r", "--region", type=str, required=False, help="region of the secret (typically 'us-west1' or 'europe-west1')")
     parser.add_argument("-s", "--secret", type=str, required=False, help="id of the secret to create/change, don't use this")
     parser.add_argument("-v", "--version", type=str, required=False, help="version of the secret to create/change")
     args = parser.parse_args()
 
     if not args.secret:
-        secret_name = f"{args.env}-gke-app-secrets"
+        if args.region:
+            secret_name = f"{args.env}-{args.region}-gke-app-secrets"
+
+        else:
+            secret_name = f"{args.env}-gke-app-secrets"
+
     else:
         secret_name = f"{args.env}-{args.secret}"
 
