@@ -1,14 +1,44 @@
 # gsm-editor
+
 A script for editing Google Secret Manager Secrets in a manner consistent with our intended External Secrets usage
 
-# Examples
+### Secret Names
 
-### list the secret versions in the stage env
-`./gsm.py list -p moz-fx-testapp1-nonprod -e stage`
+The naming pattern is: `{env}-[{region}-]-gke-{secret}-secrets`
 
-### view the latest version of the stage secret [or version 5]
-`./gsm.py view -p moz-fx-testapp1-nonprod -e stage [-v 5]`
+* `region` is optional
+* `secret` defaults to `app`
 
-### edit the latest version of the stage secret
-### This will create a secret for you if one does not already exist
-`./gsm.py edit -p moz-fx-testapp1-nonprod -e stage`
+### Examples
+
+#### list revisions of moz-fx-testapp1-nonprod's app secrets for the stage env:
+
+```bash
+$ python gsm.py list -p moz-fx-testapp1-nonprod -e stage
+```
+
+#### view latest revision of moz-fx-testapp1-nonprod's app secrets for the stage env:
+
+```bash
+$ python gsm.py view -p moz-fx-testapp1-nonprod -e stage
+```
+
+#### view latest revision of moz-fx-testapp1-nonprod's cronjob-sync-something secrets for the stage env:
+
+```bash
+$ python gsm.py view -p moz-fx-testapp1-nonprod -e stage -s cronjob-sync-something
+```
+
+#### view latest revision of moz-fx-testapp1-nonprod's app secrets for the stage env in region europe-west1:
+
+```bash
+$ python gsm.py view -p moz-fx-testapp1-nonprod -e stage -r europe-west1
+```
+
+#### edit latest revision of moz-fx-testapp1-nonprod's app secrets for the stage env:
+
+> creates a new secret if one does not already exist
+
+```bash
+$ python gsm.py edit -p moz-fx-testapp1-nonprod -e stage
+```
