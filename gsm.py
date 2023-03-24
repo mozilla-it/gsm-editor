@@ -121,27 +121,59 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("action", help="action: edit|view|list|diff")
-    parser.add_argument("-p", "--project", type=str, required=True, help="id of the GCP project")
-    parser.add_argument("-e", "--env", type=str, required=True, help="env of the secret (typically 'dev', 'stage', or 'prod')")
-    parser.add_argument("-r", "--region", type=str, required=False, help="region of the secret (typically 'us-west1' or 'europe-west1')")
-    parser.add_argument("-s", "--secret", type=str, required=False, help="id of the secret to create/change, don't use this")
-    parser.add_argument("-v", "--version", type=str, required=False, help="version of the secret to create/change")
+
+    parser.add_argument(
+        "action",
+        choices=["edit", "view", "list", "diff"],
+        help="secret action"
+    )
+
+    parser.add_argument(
+        "-p", "--project",
+        type=str,
+        required=True,
+        help="GCP project id"
+    )
+
+    parser.add_argument(
+        "-e", "--env",
+        type=str,
+        choices=["dev", "stage", "prod"],
+        required=True,
+        help="secret env"
+    )
+
+    parser.add_argument(
+        "-r", "--region",
+        type=str,
+        choices=["us-central1", "us-west1", "europe-west1"],
+        required=False,
+        help="optional region identifier"
+    )
+
+    parser.add_argument(
+        "-s", "--secret",
+        type=str,
+        default="app",
+        required=False,
+        help='custom secret identifier (default is "app")'
+    )
+
+    parser.add_argument(
+        "-v", "--version",
+        type=str,
+        default="latest",
+        required=False,
+        help="version of the secret to create/change"
+    )
+
     args = parser.parse_args()
 
-    if not args.secret:
-        if args.region:
-            secret_name = f"{args.env}-{args.region}-gke-app-secrets"
-
-        else:
-            secret_name = f"{args.env}-gke-app-secrets"
+    if args.region:
+        secret_name = f"{args.env}-{args.region}-gke-{args.secret}-secrets"
 
     else:
-        secret_name = f"{args.env}-{args.secret}"
-
-    version = args.version
-    if not version:
-        version = "latest"
+        secret_name = f"{args.env}-gke-{args.secret}-secrets"
 
     (tempfile_fd, tempfile_path) = tempfile.mkstemp()
 
@@ -151,15 +183,15 @@ if __name__ == "__main__":
     atexit.register(exit_handler)
 
     if args.action == "edit":
-        is_existing_secret = access_secret_version(args.project, secret_name, tempfile_path, version)
+        is_existing_secret = access_secret_version(args.project, secret_name, tempfile_path, args.version)
         if edit_secret(tempfile_path):
             if is_existing_secret:
                 add_secret_version(args.project, secret_name, tempfile_path)
             else:
                 create_secret(args.project, secret_name, tempfile_path)
     elif args.action == "view":
-        access_secret_version(args.project, secret_name, tempfile_path, version)
-        cat_secret(args.project, secret_name, tempfile_path, version)
+        access_secret_version(args.project, secret_name, tempfile_path, args.version)
+        cat_secret(args.project, secret_name, tempfile_path, args.version)
     elif args.action == "list":
         list_secret_versions(args.project, secret_name)
     elif args.action == "diff":
