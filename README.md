@@ -17,6 +17,11 @@ The naming pattern is: `{env}-[{region}-]-gke-{secret}-secrets`
 $ python gsm.py list -p moz-fx-testapp1-nonprod -e stage
 ```
 
+#### list all secret names in moz-fx-test-app1-nonprod for the stage env:
+```bash
+$ python gsm.py names -p moz-fx-testapp1-nonprod -e stage
+```
+
 #### view latest revision of moz-fx-testapp1-nonprod's app secrets for the stage env:
 
 ```bash
