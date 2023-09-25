@@ -26,17 +26,19 @@
 # that it would just time out. :(
 #
 
-import os, subprocess, argparse, tempfile, atexit, json
+import os, subprocess, argparse, tempfile, atexit, json, re
 from hashlib import sha256
+from typing import OrderedDict
 
 # thanks to https://www.quickprogrammingtips.com/python/how-to-calculate-sha256-hash-of-a-file-in-python.html
 def shasum(filename):
     sha256_hash = sha256()
-    with open(filename,"rb") as f:
+    with open(filename, "rb") as f:
         # Read and update hash string value in blocks of 4K
-        for byte_block in iter(lambda: f.read(4096),b""):
+        for byte_block in iter(lambda: f.read(4096), b""):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
+
 
 def create_secret(project_id, secret_id, filename):
     """
@@ -46,7 +48,18 @@ def create_secret(project_id, secret_id, filename):
     """
 
     # FIXME: is an exception raised if this fails? if not, then look at return code
-    result = subprocess.run(["gcloud", "--project", project_id, "secrets", "create", secret_id, "--data-file", filename])
+    result = subprocess.run(
+        [
+            "gcloud",
+            "--project",
+            project_id,
+            "secrets",
+            "create",
+            secret_id,
+            "--data-file",
+            filename,
+        ]
+    )
 
 
 def add_secret_version(project_id, secret_id, filename):
@@ -55,10 +68,36 @@ def add_secret_version(project_id, secret_id, filename):
     """
 
     # FIXME: is an exception raised if this fails? if not, then look at return code
-    result = subprocess.run(["gcloud", "--project", project_id, "secrets", "versions", "add", secret_id, "--data-file", filename])
+    result = subprocess.run(
+        [
+            "gcloud",
+            "--project",
+            project_id,
+            "secrets",
+            "versions",
+            "add",
+            secret_id,
+            "--data-file",
+            filename,
+        ]
+    )
+
 
 def list_secret_versions(project_id, secret_id):
-    result = subprocess.call(["gcloud", "--project", project_id, "secrets", "versions", "list", secret_id])
+    result = subprocess.call(
+        ["gcloud", "--project", project_id, "secrets", "versions", "list", secret_id]
+    )
+
+
+def list_secret_names(project_id, env):
+    full_names = subprocess.run(
+        ["gcloud", "--project", project_id, "secrets", "list", "--format=get(name)"],
+        capture_output=True,
+        text=True,
+    )
+    result = re.findall(rf"(?<={env}-gke-)(.*)(?=-secrets)", full_names.stdout)
+    print("\n".join(map(str, result)))
+
 
 def access_secret_version(project_id, secret_id, filename, version):
     """
@@ -66,30 +105,43 @@ def access_secret_version(project_id, secret_id, filename, version):
     can be a version number as a string (e.g. "5") or an alias (e.g. "latest").
     """
 
-    result = subprocess.run(["gcloud",
-                             "--project", project_id,
-                             "secrets",
-                             "versions",
-                             "access",
-                             version,
-                             "--secret", secret_id,
-                             "--format=get(payload.data)"], stdout=subprocess.PIPE)
+    result = subprocess.run(
+        [
+            "gcloud",
+            "--project",
+            project_id,
+            "secrets",
+            "versions",
+            "access",
+            version,
+            "--secret",
+            secret_id,
+            "--format=get(payload.data)",
+        ],
+        stdout=subprocess.PIPE,
+    )
     if result.returncode == 1:
-        #print(f"No such secret {project_id} {secret_id} {version}")
+        # print(f"No such secret {project_id} {secret_id} {version}")
         return 0
 
     # to deal with possible binary data, google suggests the following transforms:
     # (see: https://cloud.google.com/sdk/gcloud/reference/secrets/versions/access)
-    result_tr  = subprocess.run(["tr", "_-", "/+"], input=result.stdout, stdout=subprocess.PIPE)
-    result_b64 = subprocess.run(["base64", "-d"], input=result_tr.stdout, stdout=open(filename, 'w', 1))
+    result_tr = subprocess.run(
+        ["tr", "_-", "/+"], input=result.stdout, stdout=subprocess.PIPE
+    )
+    result_b64 = subprocess.run(
+        ["base64", "-d"], input=result_tr.stdout, stdout=open(filename, "w", 1)
+    )
     return 1
 
+
 def cat_secret(project_id, secret_id, filename, version):
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         print(f.read())
 
+
 def edit_secret(filename):
-    editor = os.getenv('EDITOR', 'vi')
+    editor = os.getenv("EDITOR", "vi")
 
     valid_json = False
 
@@ -117,6 +169,7 @@ def edit_secret(filename):
         return 0
     return 1
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -124,47 +177,48 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "action",
-        choices=["edit", "view", "list", "diff"],
-        help="secret action"
+        choices=["edit", "view", "list", "diff", "names"],
+        help="secret action",
     )
 
     parser.add_argument(
-        "-p", "--project",
-        type=str,
-        required=True,
-        help="GCP project id"
+        "-p", "--project", type=str, required=True, help="GCP project id"
     )
 
     parser.add_argument(
-        "-e", "--env",
+        "-e",
+        "--env",
         type=str,
         choices=["dev", "stage", "prod"],
         required=True,
-        help="secret env"
+        help="secret env",
     )
 
     parser.add_argument(
-        "-r", "--region",
+        "-r",
+        "--region",
         type=str,
         choices=["us-central1", "us-west1", "europe-west1"],
         required=False,
-        help="optional region identifier"
+        help="optional region identifier",
     )
 
     parser.add_argument(
-        "-s", "--secret",
+        "-s",
+        "--secret",
         type=str,
         default="app",
         required=False,
-        help='custom secret identifier (default is "app")'
+        help='custom secret identifier (default is "app")',
     )
 
     parser.add_argument(
-        "-v", "--version",
+        "-v",
+        "--version",
         type=str,
         default="latest",
         required=False,
-        help="version of the secret to create/change"
+        help="version of the secret to create/change",
     )
 
     args = parser.parse_args()
@@ -180,10 +234,13 @@ if __name__ == "__main__":
     # remove the tempfile on expected or unexpected program exit
     def exit_handler():
         os.unlink(tempfile_path)
+
     atexit.register(exit_handler)
 
     if args.action == "edit":
-        is_existing_secret = access_secret_version(args.project, secret_name, tempfile_path, args.version)
+        is_existing_secret = access_secret_version(
+            args.project, secret_name, tempfile_path, args.version
+        )
         if edit_secret(tempfile_path):
             if is_existing_secret:
                 add_secret_version(args.project, secret_name, tempfile_path)
@@ -194,5 +251,7 @@ if __name__ == "__main__":
         cat_secret(args.project, secret_name, tempfile_path, args.version)
     elif args.action == "list":
         list_secret_versions(args.project, secret_name)
+    elif args.action == "names":
+        list_secret_names(args.project, args.env)
     elif args.action == "diff":
         print("UNIMPLEMENTED. sorry.")
