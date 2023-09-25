@@ -28,7 +28,6 @@
 
 import os, subprocess, argparse, tempfile, atexit, json, re
 from hashlib import sha256
-from typing import OrderedDict
 
 # thanks to https://www.quickprogrammingtips.com/python/how-to-calculate-sha256-hash-of-a-file-in-python.html
 def shasum(filename):
