@@ -26,8 +26,15 @@
 # that it would just time out. :(
 #
 
-import os, subprocess, argparse, tempfile, atexit, json, re
+import argparse
+import atexit
+import json
+import os
+import re
+import subprocess
+import tempfile
 from hashlib import sha256
+
 
 # thanks to https://www.quickprogrammingtips.com/python/how-to-calculate-sha256-hash-of-a-file-in-python.html
 def shasum(filename):
@@ -194,15 +201,6 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-r",
-        "--region",
-        type=str,
-        choices=["us-central1", "us-west1", "europe-west1"],
-        required=False,
-        help="optional region identifier",
-    )
-
-    parser.add_argument(
         "-s",
         "--secret",
         type=str,
@@ -221,12 +219,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
-    if args.region:
-        secret_name = f"{args.env}-{args.region}-gke-{args.secret}-secrets"
-
-    else:
-        secret_name = f"{args.env}-gke-{args.secret}-secrets"
+    secret_name = f"{args.env}-gke-{args.secret}-secrets"
 
     (tempfile_fd, tempfile_path) = tempfile.mkstemp()
 
