@@ -8,6 +8,9 @@ from gsm_editor import utils
 from gsm_editor.exceptions import SecretNotFoundError
 from gsm_editor.models import CommandConfig, Secret
 
+# Create new secrets using this default string
+DEFAULT_SECRET_STRING = "{\n}\n"
+
 
 def edit_secret(config: CommandConfig):
     secret = Secret.from_command_config(config=config)
@@ -17,12 +20,14 @@ def edit_secret(config: CommandConfig):
             decoded_secret = utils.get_secret_version(secret=secret)
             secret_exists = True
         except SecretNotFoundError:
+            decoded_secret = DEFAULT_SECRET_STRING
             secret_exists = False
 
-        if secret_exists and decoded_secret:
-            # write decoded secret to temp file
-            with open(file, 'r+') as f:
-                f.write(decoded_secret)
+        # write decoded secret to temp file
+        with open(file, 'r+') as f:
+            f.write(decoded_secret)
+
+        if secret_exists:
             original_shasum = utils.shasum(file)
 
             # Open temp_file in editor
