@@ -14,6 +14,13 @@
     # edit the latest version of the stage secret
     # This will create a secret for you if one does not already exist
     ./gsm.py edit -p moz-fx-testapp1-nonprod -e stage
+
+    Tips:
+
+    - Use your preferred code editor:
+      Define an `EDITOR` environment variable in your local environment to override the
+      default `vi` value.
+      Examples: `nano`, `vim`, `code`.
 """
 
 # Why am I using `subprocess` to shell out to `gcloud` instead of using the API?
@@ -27,166 +34,14 @@
 #
 
 import argparse
-import atexit
-import json
-import os
-import re
-import subprocess
-import tempfile
-from hashlib import sha256
+import sys
+from argparse import ArgumentParser
+
+from gsm_editor import commands
+from gsm_editor.models import CommandConfig
 
 
-# thanks to https://www.quickprogrammingtips.com/python/how-to-calculate-sha256-hash-of-a-file-in-python.html
-def shasum(filename):
-    sha256_hash = sha256()
-    with open(filename, "rb") as f:
-        # Read and update hash string value in blocks of 4K
-        for byte_block in iter(lambda: f.read(4096), b""):
-            sha256_hash.update(byte_block)
-    return sha256_hash.hexdigest()
-
-
-def create_secret(project_id, secret_id, filename):
-    """
-    Create a new secret with the given name. A secret is a logical wrapper
-    around a collection of secret versions. Secret versions hold the actual
-    secret material.
-    """
-
-    # FIXME: is an exception raised if this fails? if not, then look at return code
-    result = subprocess.run(
-        [
-            "gcloud",
-            "--project",
-            project_id,
-            "secrets",
-            "create",
-            secret_id,
-            "--data-file",
-            filename,
-        ]
-    )
-
-
-def add_secret_version(project_id, secret_id, filename):
-    """
-    Add a new secret version to the given secret with the provided payload.
-    """
-
-    # FIXME: is an exception raised if this fails? if not, then look at return code
-    result = subprocess.run(
-        [
-            "gcloud",
-            "--project",
-            project_id,
-            "secrets",
-            "versions",
-            "add",
-            secret_id,
-            "--data-file",
-            filename,
-        ]
-    )
-
-
-def list_secret_versions(project_id, secret_id):
-    result = subprocess.call(
-        ["gcloud", "--project", project_id, "secrets", "versions", "list", secret_id]
-    )
-
-
-def list_secret_names(project_id, env):
-    full_names = subprocess.run(
-        ["gcloud", "--project", project_id, "secrets", "list", "--format=get(name)"],
-        capture_output=True,
-        text=True,
-    )
-    result = re.findall(rf"(?<={env}-gke-)(.*)(?=-secrets)", full_names.stdout)
-    print("\n".join(map(str, result)))
-
-
-def access_secret_version(project_id, secret_id, filename, version):
-    """
-    Access the payload for the given secret version if one exists. The version
-    can be a version number as a string (e.g. "5") or an alias (e.g. "latest").
-    """
-
-    result = subprocess.run(
-        [
-            "gcloud",
-            "--project",
-            project_id,
-            "secrets",
-            "versions",
-            "access",
-            version,
-            "--secret",
-            secret_id,
-            "--format=get(payload.data)",
-        ],
-        stdout=subprocess.PIPE,
-    )
-    if result.returncode == 1:
-        # print(f"No such secret {project_id} {secret_id} {version}")
-        return 0
-
-    # to deal with possible binary data, google suggests the following transforms:
-    # (see: https://cloud.google.com/sdk/gcloud/reference/secrets/versions/access)
-    result_tr = subprocess.run(
-        ["tr", "_-", "/+"], input=result.stdout, stdout=subprocess.PIPE
-    )
-    result_b64 = subprocess.run(
-        ["base64", "-d"], input=result_tr.stdout, stdout=open(filename, "w", 1)
-    )
-    return 1
-
-
-def cat_secret(project_id, secret_id, filename, version):
-    with open(filename, "r") as f:
-        print(f.read())
-
-
-def edit_secret(filename):
-    editor = os.getenv("EDITOR", "vi")
-
-    valid_json = False
-
-    initial_shasum = shasum(filename)
-
-    while True:
-        subprocess.call(f"{editor} {filename}", shell=True)
-        # TODO: validate exit status?
-        # TODO: add an option to skip validation
-        try:
-            json.load(open(tempfile_path))
-            valid_json = True
-            break
-        except json.decoder.JSONDecodeError as e:
-            print(e)
-            again = input("Try again [Y/n]: ")
-            if again != "Y" and again != "":
-                break
-
-    if not valid_json:
-        raise Exception("Unable to validate JSON")
-
-    if initial_shasum == shasum(filename):
-        print("No changes. Not pushing new version")
-        return 0
-    return 1
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-
-    parser.add_argument(
-        "action",
-        choices=["edit", "view", "list", "diff", "names"],
-        help="secret action",
-    )
-
+def add_default_arguments(parser: ArgumentParser) -> None:
     parser.add_argument(
         "-p", "--project", type=str, required=True, help="GCP project id"
     )
@@ -200,13 +55,15 @@ if __name__ == "__main__":
         help="secret env",
     )
 
+
+def add_select_arguments(parser: ArgumentParser) -> None:
     parser.add_argument(
         "-s",
         "--secret",
         type=str,
         default="app",
         required=False,
-        help='custom secret identifier (default is "app")',
+        help='Custom secret identifier (default is "app")',
     )
 
     parser.add_argument(
@@ -215,35 +72,77 @@ if __name__ == "__main__":
         type=str,
         default="latest",
         required=False,
-        help="version of the secret to create/change",
+        help="Version of the secret to select",
     )
 
-    args = parser.parse_args()
-    secret_name = f"{args.env}-gke-{args.secret}-secrets"
 
-    (tempfile_fd, tempfile_path) = tempfile.mkstemp()
+def add_parser_args(parser: ArgumentParser) -> None:
+    subparsers = parser.add_subparsers(dest="action", help="Secret action:")
+    edit = subparsers.add_parser("edit", help="Edit a secret")
+    add_default_arguments(parser=edit)
+    add_select_arguments(parser=edit)
 
-    # remove the tempfile on expected or unexpected program exit
-    def exit_handler():
-        os.unlink(tempfile_path)
+    view = subparsers.add_parser("view", help="Display secret content in the terminal")
+    add_default_arguments(parser=view)
+    add_select_arguments(parser=view)
 
-    atexit.register(exit_handler)
+    list_secrets = subparsers.add_parser("list", help="List all managed secrets in a project")
+    add_default_arguments(parser=list_secrets)
+    add_select_arguments(parser=list_secrets)
 
-    if args.action == "edit":
-        is_existing_secret = access_secret_version(
-            args.project, secret_name, tempfile_path, args.version
-        )
-        if edit_secret(tempfile_path):
-            if is_existing_secret:
-                add_secret_version(args.project, secret_name, tempfile_path)
-            else:
-                create_secret(args.project, secret_name, tempfile_path)
-    elif args.action == "view":
-        access_secret_version(args.project, secret_name, tempfile_path, args.version)
-        cat_secret(args.project, secret_name, tempfile_path, args.version)
-    elif args.action == "list":
-        list_secret_versions(args.project, secret_name)
-    elif args.action == "names":
-        list_secret_names(args.project, args.env)
-    elif args.action == "diff":
-        print("UNIMPLEMENTED. sorry.")
+    diff = subparsers.add_parser("diff",
+                                 help="Display differences between secret versions")
+    add_default_arguments(parser=diff)
+    diff.add_argument(
+        "-s",
+        "--secret",
+        type=str,
+        default="app",
+        required=False,
+        help='custom secret identifier (default is "app")',
+    )
+    diff.add_argument(
+        "version_a",
+        type=str,
+        help="Version to compare",
+    )
+    diff.add_argument(
+        "version_b",
+        type=str,
+        help="Other version to compare",
+    )
+
+    names = subparsers.add_parser("names", help="Display managed secret names")
+    add_default_arguments(parser=names)
+
+
+def get_parser() -> ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    add_parser_args(parser=parser)
+
+    return parser
+
+
+if __name__ == "__main__":
+    parser = get_parser()
+
+    # Print help if no arguments are given
+    if len(sys.argv) == 1:
+        parser.print_help()
+    else:
+        args = parser.parse_args()
+        config = CommandConfig.from_parser_args(args)
+
+        match config.action:
+            case "edit":
+                commands.edit_secret(config=config)
+            case "view":
+                commands.view_secret(config=config)
+            case "list":
+                commands.list_secrets(config=config)
+            case "names":
+                commands.name_secrets(config=config)
+            case "diff":
+                commands.diff_secrets(config=config, version_a=args.version_a, version_b=args.version_b)
