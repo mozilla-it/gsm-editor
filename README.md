@@ -1,3 +1,7 @@
+# DEPRECATED
+
+This tool has been deprecated in favour of the [MozCloud CLI](https://github.com/mozilla/mozcloud/tree/main#tools).
+
 # gsm-editor
 
 A script for editing Google Secret Manager Secrets in a manner consistent with our intended External Secrets usage
