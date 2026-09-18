@@ -15,6 +15,9 @@
     # This will create a secret for you if one does not already exist
     ./gsm.py edit -p moz-fx-testapp1-nonprod -e stage
 
+    # set an existing secret's value without reading it (write-only; never creates)
+    ./gsm.py set -p moz-fx-testapp1-nonprod -e stage -s restricted-something
+
     Tips:
 
     - Use your preferred code editor:
@@ -82,6 +85,28 @@ def add_parser_args(parser: ArgumentParser) -> None:
     add_default_arguments(parser=edit)
     add_select_arguments(parser=edit)
 
+    set_secret = subparsers.add_parser(
+        "set",
+        help="Set an existing secret's value without reading it (write-only; never creates)",
+    )
+    add_default_arguments(parser=set_secret)
+    set_secret.add_argument(
+        "-s",
+        "--secret",
+        type=str,
+        default="app",
+        required=False,
+        help='Custom secret identifier (default is "app")',
+    )
+    set_secret.add_argument(
+        "-f",
+        "--data-file",
+        type=str,
+        default=None,
+        required=False,
+        help="Read the payload from this file instead of opening an editor",
+    )
+
     view = subparsers.add_parser("view", help="Display secret content in the terminal")
     add_default_arguments(parser=view)
     add_select_arguments(parser=view)
@@ -138,6 +163,8 @@ if __name__ == "__main__":
         match config.action:
             case "edit":
                 commands.edit_secret(config=config)
+            case "set":
+                commands.set_secret(config=config, data_file=args.data_file)
             case "view":
                 commands.view_secret(config=config)
             case "list":

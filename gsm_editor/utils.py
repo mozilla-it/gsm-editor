@@ -19,6 +19,28 @@ def shasum(file: pathlib.Path):
     return sha256_hash.hexdigest()
 
 
+def secret_exists(secret: Secret) -> bool:
+    """Return True if the secret exists.
+
+    Uses `secrets describe` (needs `secrets.get`, not `versions.access`), so it works
+    for write-only principals.
+    """
+    result = subprocess.run(
+        [
+            "gcloud",
+            "--project",
+            secret.project_id,
+            "secrets",
+            "describe",
+            secret.secret_name,
+            "--format=get(name)",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return result.returncode == 0
+
+
 def create_secret(secret: Secret, file: pathlib.Path):
     """
     Create a new secret with the given name. A secret is a logical wrapper
@@ -90,8 +112,13 @@ def get_secret_version(secret: Secret) -> str:
     return Secret.decode_raw_bytes_secret(input_bytes=result.stdout)
 
 
-def edit_secret_file(file: pathlib.Path):
+def edit_secret_file(file: pathlib.Path, validate: bool = True):
     editor = os.getenv("EDITOR", "vi")
+
+    # Allow skipping JSON validation (write-only secrets are often a raw value).
+    if not validate:
+        subprocess.call(f"{editor} {file}", shell=True)
+        return
 
     valid_json = False
     while True:

@@ -1,2 +1,4 @@
 # cached python
 __pycache__/
+*.py[cod]
+.python-version
