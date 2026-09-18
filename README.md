@@ -1,6 +1,6 @@
 # DEPRECATED
 
-This tool has been deprecated in favour of the [MozCloud CLI](https://github.com/mozilla/mozcloud/tree/main#tools).
+This tool has been deprecated in favour of the [MozCloud CLI](https://github.com/mozilla/mozcloud/blob/main/tools/mzcld/README.md#mzcld-gsm)
 
 # gsm-editor
 
